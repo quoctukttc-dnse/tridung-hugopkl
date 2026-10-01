@@ -115,16 +115,17 @@ export async function parseScavi(pdfjs, bytes) {
       if (sm) style = sm[1];
       const from = +f.str, toN = +to.str;
       const q = num(qty.str);
-      // dòng ghép thùng: cùng CTN From/To với dòng trước và không có Color mới
-      if (last && last.from === from && last.to === toN && !cm) {
-        for (const c of last.cartons) c.contents[size.str] = (c.contents[size.str] || 0) + q;
+      const ck = `${color}|${size.str}`;
+      // dòng ghép thùng: cùng PL, cùng CTN From/To với dòng trước (kể cả khi bị ngắt sang trang mới)
+      if (last && last.pl === pl && last.from === from && last.to === toN) {
+        for (const c of last.cartons) c.contents[ck] = (c.contents[ck] || 0) + q;
         continue;
       }
-      const group = { from, to: toN, cartons: [] };
+      const group = { pl, from, to: toN, cartons: [] };
       for (let n = from; n <= toN; n++) {
         const c = {
           pl, poNumber, poItem, style, color, ctn: n,
-          contents: { [size.str]: q },
+          contents: { [ck]: q },
           gw: gw ? num(gw.str) : null, nw: nw ? num(nw.str) : null,
         };
         group.cartons.push(c); cartons.push(c);
@@ -141,7 +142,7 @@ export async function parseHugo(pdfjs, bytes) {
   const cartons = []; // {page, poItem, style, sscc, weightItems:[...], contents, color}
   const subtotals = []; // {page, items:[num, KG], isGrand}
   const headers = []; // {page, kind:'net'|'gross', items}
-  let poItem = null, style = null, cur = null;
+  let poItem = null, poNumber = null, style = null, cur = null;
   pages.forEach((items, pi) => {
     const rs = rows(items, 2);
     // header Net/Gross Weight
@@ -158,12 +159,14 @@ export async function parseHugo(pdfjs, bytes) {
       const ss = r.items.find((i) => /^\d{18,20}$/.test(i.str));
       const tr = r.items.find((i) => i.x < 130 && i.x > 100 && /^\d{1,3}$/.test(i.str));
       const st = r.items.find((i) => i.x > 140 && i.x < 200 && /^\d{7,10}$/.test(i.str));
+      const pn = r.items.find((i) => i.x > 45 && i.x < 115 && /^\d{10}$/.test(i.str));
       if (ss) {
+        if (pn) poNumber = pn.str;
         if (tr) poItem = parseInt(tr.str, 10);
         if (st) style = st.str;
         // trọng lượng nằm cùng hàng (lệch tối đa ~1pt)
         const wItems = r.items.filter((i) => i.x > 430 && i.x < 500 && /^([\d.]+(\s*KG)?|KG)$/.test(i.str));
-        cur = { page: pi, y: ss.y, poItem, style, sscc: ss.str, weight: wItems.length ? num(wItems[0].str.replace('KG', '')) : null, weightItems: wItems, contents: {}, color: null };
+        cur = { page: pi, y: ss.y, poNumber, poItem, style, sscc: ss.str, weight: wItems.length ? num(wItems[0].str.replace('KG', '')) : null, weightItems: wItems, contents: {}, color: null };
         cartons.push(cur);
         continue;
       }
@@ -173,34 +176,47 @@ export async function parseHugo(pdfjs, bytes) {
       const q = r.items.find((i) => /^\d+$/.test(i.str) && i.x > 405 && i.x + i.w < 450);
       if (c && sz && q && cur) {
         cur.color = c.str;
-        cur.contents[sz.str] = (cur.contents[sz.str] || 0) + num(q.str);
+        const ck = `${c.str}|${sz.str}`;
+        cur.contents[ck] = (cur.contents[ck] || 0) + num(q.str);
       }
     }
-    // tổng phụ / tổng cộng: số ở cột Weight, "KG" nằm dòng dưới
-    const kgs = items.filter((i) => i.str === 'KG' && i.x > 440 && i.x < 500);
-    for (const kg of kgs) {
-      const sameLineNum = items.find((i) => Math.abs(i.y - kg.y) < 2 && /^[\d.]+$/.test(i.str) && i.x > 430 && i.x < kg.x);
-      if (sameLineNum) continue;
-      const above = items.find((i) => /^[\d.]+$/.test(i.str) && i.x > 430 && i.x < 500 && i.y - kg.y > 5 && i.y - kg.y < 18);
-      if (!above) continue;
-      const isGrand = items.some((i) => /^Cartons:/.test(i.str) && Math.abs(i.y - (kg.y + above.y) / 2) < 8);
-      const afterCarton = cartons.filter((c) => c.page < pi || (c.page === pi && c.y > above.y)).length;
-      subtotals.push({ page: pi, value: num(above.str), items: [above, kg], isGrand, afterCarton });
+    // tổng phụ / tổng cộng: hàng có số ở cột Weight nhưng không có mã thùng.
+    // "KG" có thể cùng dòng (45.3 KG) hoặc xuống dòng dưới (681.92 / KG).
+    for (const r of rs) {
+      if (r.items.some((i) => /^\d{18,20}$/.test(i.str))) continue;
+      const n = r.items.find((i) => i.x > 445 && i.x < 500 && /^[\d.]+(\s*KG)?$/.test(i.str));
+      if (!n) continue;
+      if (r.items.some((i) => /^(Net|Gross)$/.test(i.str) || i.str === 'Weight')) continue;
+      let kg = r.items.find((i) => i.str === 'KG' && i.x > n.x && i.x < 500);
+      let twoLine = false;
+      if (!kg && !/KG/.test(n.str)) {
+        kg = items.find((i) => i.str === 'KG' && i.x > 440 && i.x < 500 && n.y - i.y > 5 && n.y - i.y < 18);
+        if (!kg) continue;
+        twoLine = true;
+      }
+      const ym = twoLine ? (n.y + kg.y) / 2 : n.y;
+      const isGrand = items.some((i) => /^Cartons:/.test(i.str) && Math.abs(i.y - ym) < 8);
+      const afterCarton = cartons.filter((c) => c.page < pi || (c.page === pi && c.y > n.y)).length;
+      subtotals.push({ page: pi, value: num(n.str.replace('KG', '')), items: twoLine ? [n] : [n, kg].filter(Boolean), twoLine, isGrand, afterCarton });
     }
   });
   return { cartons, subtotals, headers, pageCount: pages.length, ops: pages.map((p) => p.ops) };
 }
 
-const keyOf = (c) => `${c.poItem}|${c.style}|${c.color}|` + Object.keys(c.contents).sort().map((k) => `${k}:${c.contents[k]}`).join(',');
+const keyOf = (c) => `${c.poNumber}|${c.poItem}|${c.style}|` + Object.keys(c.contents).sort().map((k) => `${k}:${c.contents[k]}`).join(',');
 
 /* ===================== MATCH ===================== */
-export function matchCartons(hugo, scavi) {
+// pool: Map key -> danh sách thùng SCAVI chưa dùng (dùng chung cho nhiều file Hugo)
+export function buildPool(scaviList) {
   const pool = new Map();
-  for (const c of scavi.cartons) {
+  for (const sc of scaviList) for (const c of sc.cartons) {
     const k = keyOf(c);
     if (!pool.has(k)) pool.set(k, []);
     pool.get(k).push(c);
   }
+  return pool;
+}
+export function matchCartons(hugo, pool) {
   const result = [], unmatched = [];
   for (const h of hugo.cartons) {
     const q = pool.get(keyOf(h));
@@ -208,8 +224,7 @@ export function matchCartons(hugo, scavi) {
     if (!s) unmatched.push(h);
     result.push({ hugo: h, scavi: s, newWeight: s ? s.gw : h.weight });
   }
-  const leftover = [...pool.values()].flat();
-  return { result, unmatched, leftover };
+  return { result, unmatched };
 }
 
 /* ============ XOÁ CHỮ CŨ KHỎI CONTENT STREAM ============ */
@@ -290,7 +305,7 @@ function stripText(PDFLib, doc, origRef, opIndexes, expectedCount) {
 }
 
 /* ===================== WRITE ===================== */
-export async function buildOutput(PDFLib, hugoBytes, hugo, scavi, match) {
+export async function buildOutput(PDFLib, hugoBytes, hugo, match) {
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const doc = await PDFDocument.load(hugoBytes);
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -319,43 +334,56 @@ export async function buildOutput(PDFLib, hugoBytes, hugo, scavi, match) {
   };
 
   // từng thùng
-  let runCents = 0, grandCents = 0, idx = 0;
-  const subs = [...hugo.subtotals].sort((a, b) => a.afterCarton - b.afterCarton);
-  const subValues = [];
+  const cents = match.result.map((m) => toCents(m.newWeight || 0));
   for (const m of match.result) {
-    const w = m.newWeight;
-    if (m.scavi && m.hugo.weightItems.length) {
-      replace(m.hugo.page, m.hugo.weightItems, `${fmt(toCents(w))} KG`, font, WHITE);
-    }
-    runCents += toCents(w || 0); grandCents += toCents(w || 0); idx++;
-    while (subs.length && subs[0].afterCarton === idx && !subs[0].isGrand) {
-      const s = subs.shift();
-      subValues.push({ old: s.value, new: runCents / 100 });
-      replace(s.page, [s.items[0]], fmt(runCents), bold, GREY);
-      runCents = 0;
-    }
+    if (m.scavi && m.hugo.weightItems.length) replace(m.hugo.page, m.hugo.weightItems, `${fmt(toCents(m.newWeight))} KG`, font, WHITE);
   }
-  // tổng cộng (ưu tiên tổng CI của SCAVI)
-  const grossCents = scavi.totalGross != null ? toCents(scavi.totalGross) : grandCents;
-  for (const s of hugo.subtotals.filter((s) => s.isGrand)) replace(s.page, [s.items[0]], fmt(grossCents), bold, GREY);
-  // header
-  for (const h of hugo.headers) {
-    const v = h.kind === 'net' ? scavi.totalNet : scavi.totalGross;
-    if (v == null) continue;
-    replace(h.page, h.items, `${fmt(toCents(v))} KG`, font, WHITE, 'left');
+  const writeTotal = (s, c) => {
+    if (s.twoLine) replace(s.page, [s.items[0]], fmt(c), bold, GREY);
+    else replace(s.page, s.items, `${fmt(c)} KG`, bold, GREY);
+  };
+  // tổng từng TR item = cộng trọng lượng mới của các thùng nằm giữa 2 dòng tổng
+  const subValues = [];
+  let start = 0;
+  for (const s of hugo.subtotals.filter((x) => !x.isGrand).sort((a, b) => a.afterCarton - b.afterCarton)) {
+    const c = cents.slice(start, s.afterCarton).reduce((a, b) => a + b, 0);
+    subValues.push({ old: s.value, new: c / 100, from: start, to: s.afterCarton });
+    writeTotal(s, c);
+    start = s.afterCarton;
   }
+  // tổng cộng & Gross Weight = tổng G.W các thùng; Net Weight = tổng N.W các thùng
+  const grossCents = cents.reduce((a, b) => a + b, 0);
+  const oldGross = hugo.headers.find((h) => h.kind === 'gross')?.value;
+  const oldNet = hugo.headers.find((h) => h.kind === 'net')?.value;
+  const ratio = oldGross ? (oldNet || 0) / oldGross : 0;
+  let netCents = 0;
+  for (const m of match.result) {
+    if (m.scavi && m.scavi.nw != null) netCents += toCents(m.scavi.nw);
+    else netCents += Math.round(toCents(m.newWeight || 0) * ratio); // thùng không khớp: ước theo tỉ lệ cũ
+  }
+  for (const s of hugo.subtotals.filter((s) => s.isGrand)) writeTotal(s, grossCents);
+  for (const h of hugo.headers) replace(h.page, h.items, `${fmt(h.kind === 'net' ? netCents : grossCents)} KG`, font, WHITE, 'left');
+
   let stripped = 0;
   pages.forEach((pg, pi) => {
     if (kills[pi].length && stripText(PDFLib, doc, origContents[pi], kills[pi], hugo.ops[pi].length)) stripped++;
   });
   const bytes = await doc.save();
-  return { bytes, sumCartons: grandCents / 100, subValues, stripped, pagesTouched: kills.filter((k) => k.length).length };
+  return { bytes, gross: grossCents / 100, net: netCents / 100, oldGross, oldNet, subValues, stripped, pagesTouched: kills.filter((k) => k.length).length };
 }
 
-export async function processFiles(pdfjs, PDFLib, hugoBytes, scaviBytes) {
-  const scavi = await parseScavi(pdfjs, scaviBytes);
-  const hugo = await parseHugo(pdfjs, hugoBytes);
-  const match = matchCartons(hugo, scavi);
-  const out = await buildOutput(PDFLib, hugoBytes, hugo, scavi, match);
-  return { scavi, hugo, match, ...out };
+// hugoFiles / scaviFiles: mảng Uint8Array. Trả về kết quả cho từng file Hugo.
+export async function processAll(pdfjs, PDFLib, hugoFiles, scaviFiles) {
+  const scavis = [];
+  for (const b of scaviFiles) scavis.push(await parseScavi(pdfjs, b));
+  const pool = buildPool(scavis);
+  const outputs = [];
+  for (const b of hugoFiles) {
+    const hugo = await parseHugo(pdfjs, b);
+    const match = matchCartons(hugo, pool);
+    const out = await buildOutput(PDFLib, b, hugo, match);
+    outputs.push({ hugo, match, ...out });
+  }
+  const leftover = [...pool.values()].flat();
+  return { scavis, outputs, leftover };
 }
