@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hugo Boss PKL Weight Sync</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: một cột làm việc — 2 ô thả file cạnh nhau, bên dưới là bảng đối chiếu và nút tải về */
+:root {
+  --bg: #f5f6f4; --surface: #ffffff; --ink: #1d2430; --muted: #5d6675; --line: #d9dcd6;
+  --kraft: #a86b32; --kraft-soft: #f3e7d9; --ok: #2f7d4f; --ok-soft: #e3f1e8; --warn: #b4540f; --warn-soft: #fbeadb; --bad: #b42318; --bad-soft: #fbe4e2;
+  --f-body: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15181d; --surface: #1d2128; --ink: #e8e9e6; --muted: #9aa1ab; --line: #333a44;
+  --kraft: #d69a5c; --kraft-soft: #3a2c1e; --ok: #6cc08c; --ok-soft: #1d3326; --warn: #e79a5a; --warn-soft: #3a2a1b; --bad: #f08a80; --bad-soft: #3d2120; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #15181d; --surface: #1d2128; --ink: #e8e9e6; --muted: #9aa1ab; --line: #333a44;
+  --kraft: #d69a5c; --kraft-soft: #3a2c1e; --ok: #6cc08c; --ok-soft: #1d3326; --warn: #e79a5a; --warn-soft: #3a2a1b; --bad: #f08a80; --bad-soft: #3d2120; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--f-body); padding-inline: 16px; padding-block: 32px 64px; }
+.wrap { max-width: 920px; margin: 0 auto; display: grid; gap: 28px; }
+header { display: grid; gap: 6px; }
+.eyebrow { font: 500 12px/1 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--kraft); }
+h1 { font-size: clamp(24px, 4vw, 32px); line-height: 1.2; margin: 0; font-weight: 700; text-wrap: balance; }
+.lead { color: var(--muted); margin: 0; max-width: 64ch; }
+.drops { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.drop { position: relative; border: 1.5px dashed var(--line); border-radius: 10px; background: var(--surface); padding: 20px; display: grid; gap: 8px; cursor: pointer; transition: border-color .15s, background .15s; min-width: 0; }
+.drop:hover, .drop:focus-within, .drop.over { border-color: var(--kraft); }
+.drop.filled { border-style: solid; border-color: var(--ok); }
+.drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.drop .tag { font: 500 11px/1 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.drop strong { font-size: 17px; }
+.drop .file { font: 13px/1.4 var(--f-mono); color: var(--muted); overflow-wrap: anywhere; }
+.drop.filled .file { color: var(--ok); }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+button { font: 600 15px/1 var(--f-body); border: 0; border-radius: 8px; padding: 13px 20px; cursor: pointer; background: var(--kraft); color: #fff; }
+button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, .drop:focus-within { outline: 2px solid var(--kraft); outline-offset: 2px; }
+.status { font-size: 14px; color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 16px; min-width: 0; }
+.panel h2 { margin: 0; font-size: 17px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.kpi { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; }
+.kpi .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.kpi .v { font: 500 20px/1.2 var(--f-mono); font-variant-numeric: tabular-nums; }
+.kpi .o { font: 12px/1.3 var(--f-mono); color: var(--muted); text-decoration: line-through; }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .05em; }
+td.n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+th.n { text-align: right; }
+.pill { display: inline-block; font: 500 12px/1 var(--f-body); padding: 5px 9px; border-radius: 999px; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.msg { border-radius: 8px; padding: 12px 14px; font-size: 14px; }
+.msg.warn { background: var(--warn-soft); color: var(--warn); }
+.msg.bad { background: var(--bad-soft); color: var(--bad); }
+.msg.ok { background: var(--ok-soft); color: var(--ok); }
+details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+footer { font-size: 13px; color: var(--muted); }
+ol.steps { margin: 0; padding-left: 20px; color: var(--muted); font-size: 14px; display: grid; gap: 4px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">SCAVI · Hugo Boss Packlist</span>
+    <h1>Cập nhật trọng lượng Packlist Hugo Boss</h1>
+    <p class="lead">Thả Packlist Hugo Boss (số ước tính) và Packing List SCAVI (đã cân thực tế). Trang sẽ ghi trọng lượng thực của từng thùng, tổng từng TR item, tổng cộng, Net Weight và Gross Weight vào đúng mẫu Hugo Boss rồi trả lại file PDF.</p>
+  </header>
+
+  <section class="drops" id="drops">
+    <label class="drop" id="dropHugo">
+      <input type="file" id="fileHugo" accept="application/pdf">
+      <span class="tag">File 1 · Khách hàng</span>
+      <strong>Packlist Hugo Boss</strong>
+      <span class="file" id="nameHugo">Thả file PDF vào đây hoặc bấm để chọn</span>
+    </label>
+    <label class="drop" id="dropScavi">
+      <input type="file" id="fileScavi" accept="application/pdf">
+      <span class="tag">File 2 · Nhà máy</span>
+      <strong>Packing List SCAVI</strong>
+      <span class="file" id="nameScavi">Thả file PDF vào đây hoặc bấm để chọn</span>
+    </label>
+  </section>
+  <p class="hint">Có thể thả cả 2 file cùng lúc vào một ô bất kỳ, trang tự nhận biết file nào của Hugo Boss, file nào của SCAVI. File chỉ được xử lý trong trình duyệt của bạn, không gửi lên máy chủ.</p>
+
+  <div class="actions">
+    <button id="run" disabled>Cập nhật trọng lượng</button>
+    <button id="download" class="secondary" hidden>Tải PDF Hugo Boss đã cập nhật</button>
+    <button id="reset" class="secondary" hidden>Làm file khác</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <section class="panel" id="result" hidden>
+    <h2>Kết quả đối chiếu</h2>
+    <div id="alerts"></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="tbl"><table id="trTable"></table></div>
+    <details>
+      <summary>Xem chi tiết từng thùng</summary>
+      <div class="tbl"><table id="ctnTable"></table></div>
+    </details>
+  </section>
+
+  <section class="panel">
+    <h2>Quy tắc cập nhật</h2>
+    <ol class="steps">
+      <li>Mỗi thùng Hugo Boss được ghép với thùng SCAVI có cùng PO Item, Style, màu và cùng cơ cấu size/số lượng, theo thứ tự thùng.</li>
+      <li>Weight từng thùng lấy theo cột G.W (Kg) của SCAVI. Thùng đóng ghép (SCAVI ghi nhiều dòng cùng số CTN) chỉ lấy một giá trị cho cả thùng.</li>
+      <li>Tổng từng TR item được cộng lại từ trọng lượng mới. Tổng cộng và Gross Weight lấy theo Total CI Gross Weight, Net Weight lấy theo Total CI Net Weight của SCAVI.</li>
+      <li>Volume, số lượng, mã thùng và mọi thông tin khác giữ nguyên.</li>
+    </ol>
+  </section>
+  <footer>Chạy hoàn toàn trên trình duyệt, dùng pdf.js và pdf-lib.</footer>
+</div>
+
+<script src="lib/pdf-lib.min.js"></script>
+<script type="module">
+import * as pdfjs from './lib/pdf.min.mjs';
+import { processFiles } from './pkl-core.js';
+pdfjs.GlobalWorkerOptions.workerSrc = new URL('./lib/pdf.worker.min.mjs', import.meta.url).href;
+
+const $ = (id) => document.getElementById(id);
+const state = { hugo: null, scavi: null, out: null };
+
+async function detect(bytes) {
+  const doc = await pdfjs.getDocument({ data: bytes.slice(0) }).promise;
+  const p = await doc.getPage(1);
+  const t = (await p.getTextContent()).items.map((i) => i.str).join(' ');
+  if (/Packlist|Carton Number|SHOD-No/i.test(t)) return 'hugo';
+  if (/PACKING LIST|PL No|Real Qty|G\.W/i.test(t)) return 'scavi';
+  return null;
+}
+
+function setFile(kind, file, bytes) {
+  state[kind] = { file, bytes };
+  const box = kind === 'hugo' ? $('dropHugo') : $('dropScavi');
+  box.classList.add('filled');
+  (kind === 'hugo' ? $('nameHugo') : $('nameScavi')).textContent = file.name;
+  $('run').disabled = !(state.hugo && state.scavi);
+  $('download').hidden = true; $('result').hidden = true;
+}
+
+async function take(files, hint) {
+  for (const f of files) {
+    if (!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) { $('status').textContent = `${f.name} không phải file PDF.`; continue; }
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    let kind = null;
+    try { kind = await detect(bytes); } catch (e) { $('status').textContent = `Không đọc được ${f.name}.`; continue; }
+    if (!kind) kind = files.length === 1 ? hint : null;
+    if (!kind) { $('status').textContent = `Không nhận ra mẫu của ${f.name}.`; continue; }
+    setFile(kind, f, bytes);
+    $('status').textContent = '';
+  }
+}
+
+for (const [box, input, kind] of [[$('dropHugo'), $('fileHugo'), 'hugo'], [$('dropScavi'), $('fileScavi'), 'scavi']]) {
+  input.addEventListener('change', () => { take([...input.files], kind); input.value = ''; });
+  box.addEventListener('dragover', (e) => { e.preventDefault(); box.classList.add('over'); });
+  box.addEventListener('dragleave', () => box.classList.remove('over'));
+  box.addEventListener('drop', (e) => { e.preventDefault(); box.classList.remove('over'); take([...e.dataTransfer.files], kind); });
+}
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => { e.preventDefault(); if (!e.target.closest('.drop')) take([...e.dataTransfer.files], null); });
+
+const f2 = (v) => v == null ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+
+$('run').addEventListener('click', async () => {
+  $('run').disabled = true; $('status').textContent = 'Đang xử lý…';
+  try {
+    const r = await processFiles(pdfjs, window.PDFLib, state.hugo.bytes, state.scavi.bytes);
+    state.out = r.bytes;
+    render(r);
+    $('download').hidden = false; $('reset').hidden = false;
+    $('status').textContent = 'Xong.';
+  } catch (e) {
+    console.error(e);
+    $('status').textContent = 'Lỗi khi xử lý: ' + e.message;
+  } finally { $('run').disabled = false; }
+});
+
+function render(r) {
+  const { hugo, scavi, match } = r;
+  const alerts = [];
+  if (match.unmatched.length) alerts.push(['bad', `${match.unmatched.length} thùng Hugo Boss không tìm thấy thùng tương ứng trong SCAVI, giữ nguyên trọng lượng cũ. Xem bảng chi tiết bên dưới.`]);
+  if (match.leftover.length) alerts.push(['warn', `${match.leftover.length} thùng SCAVI không có trong Packlist Hugo Boss.`]);
+  if (hugo.cartons.length !== scavi.cartons.length) alerts.push(['warn', `Số thùng khác nhau: Hugo Boss ${hugo.cartons.length}, SCAVI ${scavi.cartons.length}.`]);
+  if (scavi.totalGross != null && Math.abs(r.sumCartons - scavi.totalGross) > 0.005) alerts.push(['warn', `Tổng G.W các thùng (${f2(r.sumCartons)}) khác Total CI Gross Weight của SCAVI (${f2(scavi.totalGross)}). Tổng cộng ghi theo SCAVI.`]);
+  if (r.stripped < r.pagesTouched) alerts.push(['warn', 'Một số trang chỉ được phủ số mới lên trên số cũ (số cũ vẫn còn trong lớp chữ ẩn).']);
+  if (!alerts.length) alerts.push(['ok', `Đã khớp đủ ${hugo.cartons.length}/${scavi.cartons.length} thùng. Tổng G.W các thùng bằng Total CI Gross Weight của SCAVI.`]);
+  $('alerts').innerHTML = alerts.map(([c, t]) => `<div class="msg ${c}">${t}</div>`).join('');
+
+  const oldNet = hugo.headers.find((h) => h.kind === 'net')?.value;
+  const oldGross = hugo.headers.find((h) => h.kind === 'gross')?.value;
+  $('kpis').innerHTML = [
+    ['Số thùng khớp', `${hugo.cartons.length - match.unmatched.length}/${hugo.cartons.length}`, ''],
+    ['Net Weight (KG)', f2(scavi.totalNet), f2(oldNet)],
+    ['Gross Weight (KG)', f2(scavi.totalGross), f2(oldGross)],
+  ].map(([k, v, o]) => `<div class="kpi"><span class="k">${k}</span><span class="v">${v}</span>${o ? `<span class="o">${o}</span>` : ''}</div>`).join('');
+
+  // tổng theo TR item
+  const groups = [];
+  let gi = 0, start = 0;
+  const subs = hugo.subtotals.filter((s) => !s.isGrand).sort((a, b) => a.afterCarton - b.afterCarton);
+  for (const s of subs) {
+    const seg = match.result.slice(start, s.afterCarton);
+    groups.push({ po: seg[0]?.hugo.poItem, style: seg[0]?.hugo.style, n: seg.length, old: s.value, neu: r.subValues[gi++]?.new, miss: seg.filter((x) => !x.scavi).length });
+    start = s.afterCarton;
+  }
+  $('trTable').innerHTML = `<thead><tr><th>PO Item</th><th>Style</th><th class="n">Số thùng</th><th class="n">Cũ (KG)</th><th class="n">Mới (KG)</th><th class="n">Chênh lệch</th><th>Trạng thái</th></tr></thead><tbody>` +
+    groups.map((g) => `<tr><td>${g.po}</td><td>${g.style}</td><td class="n">${g.n}</td><td class="n">${f2(g.old)}</td><td class="n">${f2(g.neu)}</td><td class="n">${g.neu - g.old >= 0 ? '+' : ''}${f2(g.neu - g.old)}</td><td>${g.miss ? `<span class="pill bad">${g.miss} thùng chưa khớp</span>` : '<span class="pill ok">Đủ</span>'}</td></tr>`).join('') + '</tbody>';
+
+  $('ctnTable').innerHTML = `<thead><tr><th>#</th><th>Carton Number</th><th>PO Item</th><th>Màu</th><th>Size / SL</th><th>SCAVI PL · CTN</th><th class="n">Cũ</th><th class="n">Mới</th></tr></thead><tbody>` +
+    match.result.map((m, i) => `<tr><td>${i + 1}</td><td>${m.hugo.sscc}</td><td>${m.hugo.poItem}</td><td>${m.hugo.color}</td><td>${Object.entries(m.hugo.contents).map(([k, v]) => k + ':' + v).join(', ')}</td><td>${m.scavi ? m.scavi.pl + ' · ' + m.scavi.ctn : '<span class="pill bad">Không khớp</span>'}</td><td class="n">${f2(m.hugo.weight)}</td><td class="n">${f2(m.newWeight)}</td></tr>`).join('') + '</tbody>';
+  $('result').hidden = false;
+}
+
+$('download').addEventListener('click', () => {
+  const blob = new Blob([state.out], { type: 'application/pdf' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = state.hugo.file.name.replace(/\.pdf$/i, '') + '_updated.pdf';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+});
+
+$('reset').addEventListener('click', () => {
+  state.hugo = state.scavi = state.out = null;
+  for (const id of ['dropHugo', 'dropScavi']) $(id).classList.remove('filled');
+  $('nameHugo').textContent = $('nameScavi').textContent = 'Thả file PDF vào đây hoặc bấm để chọn';
+  $('run').disabled = true; $('download').hidden = true; $('reset').hidden = true; $('result').hidden = true; $('status').textContent = '';
+});
+</script>
+</body>
+</html>
